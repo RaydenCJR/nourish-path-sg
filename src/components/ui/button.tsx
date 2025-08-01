@@ -18,6 +18,9 @@ const buttonVariants = cva(
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
+        fresh: "bg-gradient-to-r from-fresh-green to-primary text-primary-foreground shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200",
+        citrus: "bg-gradient-to-r from-citrus-orange to-citrus-yellow text-foreground shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200",
+        scan: "bg-gradient-to-r from-fresh-green/90 to-fresh-green border-2 border-fresh-green/30 text-primary-foreground shadow-lg hover:shadow-xl",
       },
       size: {
         default: "h-10 px-4 py-2",
