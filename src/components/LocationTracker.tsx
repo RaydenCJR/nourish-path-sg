@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { MapPin, Navigation, Store, Clock, RefreshCw } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 interface LocationTrackerProps {
   location: GeolocationPosition | null;
@@ -15,55 +16,43 @@ interface Supermarket {
   address: string;
   distance: number;
   type: string;
+  phone?: string;
+  opening_hours?: string;
 }
 
 export const LocationTracker: React.FC<LocationTrackerProps> = ({ location, nearSupermarket }) => {
   const [isTracking, setIsTracking] = useState(false);
   const [nearbyStores, setNearbyStores] = useState<Supermarket[]>([]);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [isLoadingStores, setIsLoadingStores] = useState(false);
 
-  // Mock data for Singapore supermarkets
-  const singaporeSupermarkets: Supermarket[] = [
-    {
-      id: '1',
-      name: 'FairPrice Orchard',
-      address: 'Orchard Road, Singapore 238801',
-      distance: 0.3,
-      type: 'FairPrice'
-    },
-    {
-      id: '2',
-      name: 'Cold Storage Marina Bay',
-      address: 'Marina Bay Sands, Singapore 018956',
-      distance: 0.8,
-      type: 'Cold Storage'
-    },
-    {
-      id: '3',
-      name: 'Giant Tampines',
-      address: 'Tampines Central, Singapore 529510',
-      distance: 1.2,
-      type: 'Giant'
-    },
-    {
-      id: '4',
-      name: 'Sheng Siong Bedok',
-      address: 'Bedok Mall, Singapore 469332',
-      distance: 1.5,
-      type: 'Sheng Siong'
-    },
-    {
-      id: '5',
-      name: 'FairPrice Finest Bukit Timah',
-      address: 'Bukit Timah Road, Singapore 269718',
-      distance: 2.1,
-      type: 'FairPrice Finest'
+  // Fetch nearby supermarkets from the database
+  const fetchNearbySupermarkets = async (latitude: number, longitude: number) => {
+    setIsLoadingStores(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('nearby-supermarkets', {
+        body: { latitude, longitude, radius: 5 }
+      });
+
+      if (error) {
+        console.error('Error fetching nearby supermarkets:', error);
+        return;
+      }
+
+      if (data.success) {
+        setNearbyStores(data.data);
+        console.log(`Found ${data.count} nearby supermarkets`);
+      }
+    } catch (error) {
+      console.error('Error calling nearby-supermarkets function:', error);
+    } finally {
+      setIsLoadingStores(false);
     }
-  ];
+  };
 
   useEffect(() => {
     if (location) {
-      setNearbyStores(singaporeSupermarkets);
+      fetchNearbySupermarkets(location.coords.latitude, location.coords.longitude);
       setLastUpdate(new Date());
     }
   }, [location]);
@@ -72,6 +61,7 @@ export const LocationTracker: React.FC<LocationTrackerProps> = ({ location, near
     setIsTracking(true);
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        fetchNearbySupermarkets(position.coords.latitude, position.coords.longitude);
         setLastUpdate(new Date());
         setIsTracking(false);
       },
@@ -166,7 +156,12 @@ export const LocationTracker: React.FC<LocationTrackerProps> = ({ location, near
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {nearbyStores.length > 0 ? (
+          {isLoadingStores ? (
+            <div className="text-center py-6">
+              <RefreshCw className="w-8 h-8 mx-auto mb-2 animate-spin text-muted-foreground" />
+              <p className="text-muted-foreground">Finding nearby supermarkets...</p>
+            </div>
+          ) : nearbyStores.length > 0 ? (
             <div className="space-y-3">
               {nearbyStores.map((store) => (
                 <div
