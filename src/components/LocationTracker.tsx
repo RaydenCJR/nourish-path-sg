@@ -125,21 +125,23 @@ export const LocationTracker: React.FC<LocationTrackerProps> = ({ location, near
                   <Clock className="w-3 h-3" />
                   {lastUpdate.toLocaleTimeString()}
                 </Badge>
-              </div>
-              
-              <div className="text-sm text-muted-foreground">
-                <p>Latitude: {location.coords.latitude.toFixed(6)}</p>
-                <p>Longitude: {location.coords.longitude.toFixed(6)}</p>
-                <p>Accuracy: ±{location.coords.accuracy.toFixed(0)}m</p>
-              </div>
+               </div>
+               
+               {!nearSupermarket && (
+                 <div className="text-sm text-muted-foreground">
+                   <p>Latitude: {location.coords.latitude.toFixed(6)}</p>
+                   <p>Longitude: {location.coords.longitude.toFixed(6)}</p>
+                   <p>Accuracy: ±{location.coords.accuracy.toFixed(0)}m</p>
+                 </div>
+               )}
 
-              {nearSupermarket && (
-                <div className="p-3 bg-fresh-green-light/20 border border-fresh-green/30 rounded-lg">
-                  <p className="text-sm font-medium text-fresh-green">
-                    🎯 You're near a supermarket! Perfect time to start shopping.
-                  </p>
-                </div>
-              )}
+               {nearSupermarket && (
+                 <div className="p-3 bg-fresh-green-light/20 border border-fresh-green/30 rounded-lg">
+                   <p className="text-sm font-medium text-fresh-green">
+                     🎯 You're near a supermarket! Perfect time to start shopping.
+                   </p>
+                 </div>
+               )}
             </div>
           ) : (
             <div className="text-center py-4">

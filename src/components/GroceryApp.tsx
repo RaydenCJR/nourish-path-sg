@@ -9,6 +9,7 @@ import { LocationTracker } from './LocationTracker';
 import { BarcodeScanner } from './BarcodeScanner';
 import { NutritionDisplay } from './NutritionDisplay';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 export const GroceryApp = () => {
   const [activeTab, setActiveTab] = useState('list');
@@ -38,32 +39,39 @@ export const GroceryApp = () => {
     }
   }, []);
 
-  const checkNearSupermarket = (position: GeolocationPosition) => {
-    // Mock supermarket detection for Singapore
-    // In a real app, you'd use a places API
-    const singaporeSupermarkets = [
-      { lat: 1.3521, lng: 103.8198, name: "FairPrice Orchard" },
-      { lat: 1.2966, lng: 103.8520, name: "Cold Storage Marina Bay" },
-      { lat: 1.3048, lng: 103.8318, name: "Giant Tampines" }
-    ];
-
-    const userLat = position.coords.latitude;
-    const userLng = position.coords.longitude;
-
-    // Check if within 500m of any supermarket (very simplified calculation)
-    const isNear = singaporeSupermarkets.some(market => {
-      const distance = Math.sqrt(
-        Math.pow(userLat - market.lat, 2) + Math.pow(userLng - market.lng, 2)
-      ) * 111000; // Rough conversion to meters
-      return distance < 500;
-    });
-
-    if (isNear && !nearSupermarket) {
-      setNearSupermarket(true);
-      toast({
-        title: "📍 Supermarket Detected!",
-        description: "You're near a supermarket. Ready to start shopping?",
+  const checkNearSupermarket = async (position: GeolocationPosition) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('nearby-supermarkets', {
+        body: { 
+          latitude: position.coords.latitude, 
+          longitude: position.coords.longitude, 
+          radius: 1 // 1km radius for "near" detection
+        }
       });
+
+      if (error) {
+        console.error('Error checking nearby supermarkets:', error);
+        return;
+      }
+
+      if (data.success && data.data.length > 0) {
+        // Check if any supermarket is within 500m (0.5km)
+        const veryClose = data.data.some((store: any) => store.distance <= 0.5);
+        
+        if (veryClose && !nearSupermarket) {
+          setNearSupermarket(true);
+          toast({
+            title: "📍 Supermarket Detected!",
+            description: "You're near a supermarket. Ready to start shopping?",
+          });
+        } else if (!veryClose && nearSupermarket) {
+          setNearSupermarket(false);
+        }
+      } else if (nearSupermarket) {
+        setNearSupermarket(false);
+      }
+    } catch (error) {
+      console.error('Error calling nearby-supermarkets function:', error);
     }
   };
 
