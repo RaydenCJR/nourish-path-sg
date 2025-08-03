@@ -72,6 +72,12 @@ export const LocationTracker: React.FC<LocationTrackerProps> = ({ location, near
     );
   };
 
+  const openInGoogleMaps = (address: string, name: string) => {
+    const encodedAddress = encodeURIComponent(`${name}, ${address}`);
+    const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
+    window.open(googleMapsUrl, '_blank');
+  };
+
   const getStoreIcon = (type: string) => {
     switch (type) {
       case 'FairPrice':
@@ -163,14 +169,15 @@ export const LocationTracker: React.FC<LocationTrackerProps> = ({ location, near
             </div>
           ) : nearbyStores.length > 0 ? (
             <div className="space-y-3">
-              {nearbyStores.map((store) => (
+              {nearbyStores.slice(0, 3).map((store) => (
                 <div
                   key={store.id}
-                  className={`p-3 rounded-lg border transition-all duration-200 ${
+                  className={`p-3 rounded-lg border transition-all duration-200 cursor-pointer ${
                     store.distance <= 0.5 
-                      ? 'bg-fresh-green-light/20 border-fresh-green/30' 
-                      : 'bg-card hover:shadow-md'
+                      ? 'bg-fresh-green-light/20 border-fresh-green/30 hover:bg-fresh-green-light/30' 
+                      : 'bg-card hover:shadow-md hover:bg-accent/50'
                   }`}
+                  onClick={() => openInGoogleMaps(store.address, store.name)}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-start gap-3">
@@ -189,14 +196,24 @@ export const LocationTracker: React.FC<LocationTrackerProps> = ({ location, near
                       </div>
                     </div>
                     
-                    {store.distance <= 0.5 && (
-                      <Badge variant="default" className="text-xs">
-                        Nearby
+                    <div className="flex flex-col items-end gap-1">
+                      {store.distance <= 0.5 && (
+                        <Badge variant="default" className="text-xs">
+                          Nearby
+                        </Badge>
+                      )}
+                      <Badge variant="outline" className="text-xs">
+                        Tap for directions
                       </Badge>
-                    )}
+                    </div>
                   </div>
                 </div>
               ))}
+              {nearbyStores.length > 3 && (
+                <p className="text-center text-sm text-muted-foreground pt-2">
+                  Showing top 3 nearest • {nearbyStores.length - 3} more nearby
+                </p>
+              )}
             </div>
           ) : (
             <div className="text-center py-6 text-muted-foreground">
