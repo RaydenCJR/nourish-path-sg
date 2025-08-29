@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Camera, StopCircle, RotateCcw, Zap, ShoppingCart } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface BarcodeScannerProps {
   onProductScanned: (product: any) => void;
@@ -124,25 +125,70 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onProductScanned
     setIsScanning(false);
   };
 
-  const simulateScan = () => {
-    // Simulate scanning by randomly selecting a product
+  const simulateScan = async () => {
+    // Simulate scanning by randomly selecting a product and using AI to identify it
     const barcodes = Object.keys(mockProducts);
     const randomBarcode = barcodes[Math.floor(Math.random() * barcodes.length)];
-    const product = mockProducts[randomBarcode as keyof typeof mockProducts];
-    
-    const scannedProduct = {
-      ...product,
-      scannedAt: new Date().toISOString(),
-      scanLocation: nearSupermarket ? 'In Store' : 'Outside Store'
-    };
-
-    setRecentScans(prev => [scannedProduct, ...prev.slice(0, 4)]);
-    onProductScanned(scannedProduct);
     
     toast({
-      title: "Product Scanned! 📦",
-      description: `${product.name} - ${product.price}`,
+      title: "🔍 Identifying Product...",
+      description: "Using AI to analyze the barcode",
     });
+
+    try {
+      await identifyProductWithAI(randomBarcode);
+    } catch (error) {
+      console.error('Error during AI product identification:', error);
+      // Fallback to mock data if AI fails
+      const product = mockProducts[randomBarcode as keyof typeof mockProducts];
+      
+      const scannedProduct = {
+        ...product,
+        scannedAt: new Date().toISOString(),
+        scanLocation: nearSupermarket ? 'In Store' : 'Outside Store'
+      };
+
+      setRecentScans(prev => [scannedProduct, ...prev.slice(0, 4)]);
+      onProductScanned(scannedProduct);
+      
+      toast({
+        title: "Product Scanned! 📦",
+        description: `${product.name} - ${product.price}`,
+      });
+    }
+  };
+
+  const identifyProductWithAI = async (barcode: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('identify-product', {
+        body: { barcode }
+      });
+
+      if (error) {
+        console.error('Error calling identify-product function:', error);
+        throw error;
+      }
+
+      if (data?.success && data?.product) {
+        const scannedProduct = {
+          ...data.product,
+          scanLocation: nearSupermarket ? 'In Store' : 'Outside Store'
+        };
+
+        setRecentScans(prev => [scannedProduct, ...prev.slice(0, 4)]);
+        onProductScanned(scannedProduct);
+        
+        toast({
+          title: "Product Identified! 🤖",
+          description: `${data.product.name} - ${data.product.price}`,
+        });
+      } else {
+        throw new Error('Failed to identify product');
+      }
+    } catch (error) {
+      console.error('Error identifying product with AI:', error);
+      throw error;
+    }
   };
 
   const switchCamera = async () => {
@@ -239,13 +285,13 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onProductScanned
             </Button>
           </div>
 
-          {/* Demo Button */}
+          {/* AI Demo Button */}
           <Button 
             onClick={simulateScan} 
             variant="citrus" 
             className="w-full"
           >
-            📱 Demo: Simulate Product Scan
+            🤖 AI Demo: Identify Product
           </Button>
 
           {hasPermission === false && (
