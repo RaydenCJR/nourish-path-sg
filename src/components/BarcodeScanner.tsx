@@ -22,61 +22,6 @@ export const BarcodeScanner: React.FC<ItemScannerProps> = ({ onProductScanned, n
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { toast } = useToast();
 
-  // Mock product database
-  const mockProducts = {
-    '8901030896491': {
-      name: 'Britannia Good Day Butter Cookies',
-      brand: 'Britannia',
-      barcode: '8901030896491',
-      category: 'Biscuits & Cookies',
-      price: 'S$2.95',
-      nutrition: {
-        calories: 456,
-        fat: 16.2,
-        saturatedFat: 8.1,
-        carbs: 71.4,
-        sugar: 29.7,
-        protein: 7.2,
-        sodium: 0.34,
-        fiber: 2.1
-      }
-    },
-    '8901030896481': {
-      name: 'Maggi 2-Minute Noodles Curry',
-      brand: 'Maggi',
-      barcode: '8901030896481',
-      category: 'Instant Noodles',
-      price: 'S$1.20',
-      nutrition: {
-        calories: 387,
-        fat: 13.6,
-        saturatedFat: 6.8,
-        carbs: 58.4,
-        sugar: 4.2,
-        protein: 9.8,
-        sodium: 1.87,
-        fiber: 3.2
-      }
-    },
-    '1234567890123': {
-      name: 'Fresh Banana (Per kg)',
-      brand: 'Local Farm',
-      barcode: '1234567890123',
-      category: 'Fresh Fruits',
-      price: 'S$3.50/kg',
-      nutrition: {
-        calories: 89,
-        fat: 0.3,
-        saturatedFat: 0.1,
-        carbs: 22.8,
-        sugar: 12.2,
-        protein: 1.1,
-        sodium: 0.001,
-        fiber: 2.6
-      }
-    }
-  };
-
   useEffect(() => {
     return () => {
       if (streamRef.current) {
@@ -158,23 +103,10 @@ export const BarcodeScanner: React.FC<ItemScannerProps> = ({ onProductScanned, n
     } catch (error) {
       console.error('Error during image capture and AI identification:', error);
       
-      // Fallback to mock data if AI fails
-      const barcodes = Object.keys(mockProducts);
-      const randomBarcode = barcodes[Math.floor(Math.random() * barcodes.length)];
-      const product = mockProducts[randomBarcode as keyof typeof mockProducts];
-      
-      const scannedProduct = {
-        ...product,
-        scannedAt: new Date().toISOString(),
-        scanLocation: nearSupermarket ? 'In Store' : 'Outside Store'
-      };
-
-      setRecentScans(prev => [scannedProduct, ...prev.slice(0, 4)]);
-      onProductScanned(scannedProduct);
-      
       toast({
-        title: "Product Identified! 📦",
-        description: `${product.name} - ${product.price}`,
+        title: "❌ Identification Failed",
+        description: "Could not identify the product. Please try again with better lighting.",
+        variant: "destructive"
       });
     } finally {
       setIsCapturing(false);
@@ -182,36 +114,17 @@ export const BarcodeScanner: React.FC<ItemScannerProps> = ({ onProductScanned, n
   };
 
   const simulateScan = async () => {
-    // Simulate scanning by randomly selecting a product and using AI to identify it
-    const barcodes = Object.keys(mockProducts);
-    const randomBarcode = barcodes[Math.floor(Math.random() * barcodes.length)];
-    
-    toast({
-      title: "🔍 Identifying Product...",
-      description: "Using AI to analyze the product",
-    });
-
-    try {
-      await identifyProductWithAI(randomBarcode);
-    } catch (error) {
-      console.error('Error during AI product identification:', error);
-      // Fallback to mock data if AI fails
-      const product = mockProducts[randomBarcode as keyof typeof mockProducts];
-      
-      const scannedProduct = {
-        ...product,
-        scannedAt: new Date().toISOString(),
-        scanLocation: nearSupermarket ? 'In Store' : 'Outside Store'
-      };
-
-      setRecentScans(prev => [scannedProduct, ...prev.slice(0, 4)]);
-      onProductScanned(scannedProduct);
-      
+    if (!isScanning) {
       toast({
-        title: "Product Scanned! 📦",
-        description: `${product.name} - ${product.price}`,
+        title: "⚠️ Camera Required",
+        description: "Please start the camera first to scan products",
+        variant: "destructive"
       });
+      return;
     }
+    
+    // Use actual camera capture instead of mock data
+    await captureImage();
   };
 
   const identifyProductWithAI = async (barcode?: string | null, imageData?: string) => {
@@ -357,14 +270,17 @@ export const BarcodeScanner: React.FC<ItemScannerProps> = ({ onProductScanned, n
             )}
           </div>
 
-          {/* AI Demo Button */}
-          <Button 
-            onClick={simulateScan} 
-            variant="citrus" 
-            className="w-full"
-          >
-            🤖 AI Demo: Random Product
-          </Button>
+          {/* Quick Capture Button */}
+          {isScanning && (
+            <Button 
+              onClick={simulateScan} 
+              variant="citrus" 
+              className="w-full"
+              disabled={isCapturing}
+            >
+              📸 Quick Capture & Identify
+            </Button>
+          )}
 
           {hasPermission === false && (
             <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">

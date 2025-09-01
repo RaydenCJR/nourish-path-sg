@@ -33,7 +33,7 @@ serve(async (req) => {
       );
     }
 
-    console.log('Identifying product with barcode:', barcode);
+    console.log('Identifying product with barcode:', barcode, 'imageData provided:', !!imageData);
 
     // Create the AI prompt
     let prompt = '';
@@ -104,7 +104,7 @@ If you cannot identify the product exactly, make educated guesses based on simil
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
+        model: 'gpt-4o-mini',
         messages: messages,
         max_tokens: 1000,
         temperature: 0.3,
