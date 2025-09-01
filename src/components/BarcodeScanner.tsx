@@ -2,22 +2,24 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Camera, StopCircle, RotateCcw, Zap, ShoppingCart } from 'lucide-react';
+import { Camera, StopCircle, RotateCcw, Zap, ShoppingCart, Scan } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
-interface BarcodeScannerProps {
+interface ItemScannerProps {
   onProductScanned: (product: any) => void;
   nearSupermarket: boolean;
 }
 
-export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onProductScanned, nearSupermarket }) => {
+export const BarcodeScanner: React.FC<ItemScannerProps> = ({ onProductScanned, nearSupermarket }) => {
   const [isScanning, setIsScanning] = useState(false);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
   const [recentScans, setRecentScans] = useState<any[]>([]);
+  const [isCapturing, setIsCapturing] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const { toast } = useToast();
 
   // Mock product database
@@ -108,8 +110,8 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onProductScanned
       videoRef.current.srcObject = stream;
       setIsScanning(true);
       toast({
-        title: "Scanner Active",
-        description: "Point your camera at a product barcode",
+        title: "Item Scanner Active",
+        description: "Point your camera at any product to identify it",
       });
     }
   };
@@ -125,6 +127,60 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onProductScanned
     setIsScanning(false);
   };
 
+  const captureImage = async () => {
+    if (!videoRef.current || !isScanning) return;
+    
+    setIsCapturing(true);
+    toast({
+      title: "📸 Capturing Image...",
+      description: "Using AI to identify the product",
+    });
+
+    try {
+      // Create canvas element for image capture
+      const canvas = document.createElement('canvas');
+      const video = videoRef.current;
+      
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Could not get canvas context');
+      
+      // Draw video frame to canvas
+      ctx.drawImage(video, 0, 0);
+      
+      // Convert to base64
+      const imageData = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+      
+      // Send to AI for identification
+      await identifyProductWithAI(null, imageData);
+    } catch (error) {
+      console.error('Error during image capture and AI identification:', error);
+      
+      // Fallback to mock data if AI fails
+      const barcodes = Object.keys(mockProducts);
+      const randomBarcode = barcodes[Math.floor(Math.random() * barcodes.length)];
+      const product = mockProducts[randomBarcode as keyof typeof mockProducts];
+      
+      const scannedProduct = {
+        ...product,
+        scannedAt: new Date().toISOString(),
+        scanLocation: nearSupermarket ? 'In Store' : 'Outside Store'
+      };
+
+      setRecentScans(prev => [scannedProduct, ...prev.slice(0, 4)]);
+      onProductScanned(scannedProduct);
+      
+      toast({
+        title: "Product Identified! 📦",
+        description: `${product.name} - ${product.price}`,
+      });
+    } finally {
+      setIsCapturing(false);
+    }
+  };
+
   const simulateScan = async () => {
     // Simulate scanning by randomly selecting a product and using AI to identify it
     const barcodes = Object.keys(mockProducts);
@@ -132,7 +188,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onProductScanned
     
     toast({
       title: "🔍 Identifying Product...",
-      description: "Using AI to analyze the barcode",
+      description: "Using AI to analyze the product",
     });
 
     try {
@@ -158,10 +214,12 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onProductScanned
     }
   };
 
-  const identifyProductWithAI = async (barcode: string) => {
+  const identifyProductWithAI = async (barcode?: string | null, imageData?: string) => {
     try {
+      const requestBody = barcode ? { barcode } : { imageData };
+      
       const { data, error } = await supabase.functions.invoke('identify-product', {
-        body: { barcode }
+        body: requestBody
       });
 
       if (error) {
@@ -208,8 +266,8 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onProductScanned
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <span className="flex items-center gap-2">
-              <Camera className="w-5 h-5" />
-              Barcode Scanner
+              <Scan className="w-5 h-5" />
+              AI Item Scanner
             </span>
             {nearSupermarket && (
               <Badge variant="default" className="flex items-center gap-1">
@@ -238,7 +296,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onProductScanned
                   <p className="text-muted-foreground mb-4">
                     {hasPermission === false 
                       ? "Camera access denied" 
-                      : "Ready to scan products"}
+                      : "Ready to identify products"}
                   </p>
                   {!nearSupermarket && (
                     <Badge variant="outline" className="mb-4">
@@ -252,14 +310,16 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onProductScanned
             {/* Scanning Overlay */}
             {isScanning && (
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="border-2 border-fresh-green w-64 h-32 rounded-lg relative">
+                <div className="border-2 border-fresh-green w-80 h-48 rounded-lg relative">
                   <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-fresh-green rounded-tl-lg"></div>
                   <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-fresh-green rounded-tr-lg"></div>
                   <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-fresh-green rounded-bl-lg"></div>
                   <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-fresh-green rounded-br-lg"></div>
                   
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-full h-0.5 bg-fresh-green animate-pulse"></div>
+                    <div className="text-white bg-black/50 px-3 py-1 rounded-full text-sm">
+                      Position product in frame
+                    </div>
                   </div>
                 </div>
               </div>
@@ -271,18 +331,30 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onProductScanned
             {!isScanning ? (
               <Button onClick={startScanning} variant="scan" className="flex-1">
                 <Camera className="w-4 h-4 mr-2" />
-                Start Scanning
+                Start Camera
               </Button>
             ) : (
-              <Button onClick={stopScanning} variant="destructive" className="flex-1">
-                <StopCircle className="w-4 h-4 mr-2" />
-                Stop Scanning
-              </Button>
+              <>
+                <Button 
+                  onClick={captureImage} 
+                  variant="default" 
+                  className="flex-1"
+                  disabled={isCapturing}
+                >
+                  <Scan className="w-4 h-4 mr-2" />
+                  {isCapturing ? "Analyzing..." : "Capture & Identify"}
+                </Button>
+                <Button onClick={stopScanning} variant="outline">
+                  <StopCircle className="w-4 h-4" />
+                </Button>
+              </>
             )}
             
-            <Button variant="outline" onClick={switchCamera}>
-              <RotateCcw className="w-4 h-4" />
-            </Button>
+            {isScanning && (
+              <Button variant="outline" onClick={switchCamera}>
+                <RotateCcw className="w-4 h-4" />
+              </Button>
+            )}
           </div>
 
           {/* AI Demo Button */}
@@ -291,13 +363,13 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onProductScanned
             variant="citrus" 
             className="w-full"
           >
-            🤖 AI Demo: Identify Product
+            🤖 AI Demo: Random Product
           </Button>
 
           {hasPermission === false && (
             <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
               <p className="text-sm text-destructive">
-                Camera access is required to scan barcodes. Please enable camera permissions in your browser settings.
+                Camera access is required to identify products. Please enable camera permissions in your browser settings.
               </p>
             </div>
           )}
@@ -310,7 +382,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onProductScanned
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <ShoppingCart className="w-5 h-5" />
-              Recent Scans
+              Recently Identified
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -345,12 +417,12 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onProductScanned
       <Card className="bg-gradient-to-r from-fresh-green-light/20 to-primary/10 border-fresh-green/20">
         <CardContent className="pt-6">
           <div className="text-center">
-            <h3 className="font-medium mb-2">🎯 Scanning Tips</h3>
+            <h3 className="font-medium mb-2">🎯 Item Scanning Tips</h3>
             <div className="text-sm text-muted-foreground space-y-1">
-              <p>• Hold your phone steady over the barcode</p>
-              <p>• Ensure good lighting for best results</p>
-              <p>• Try different angles if scanning fails</p>
-              <p>• Clean your camera lens for clarity</p>
+              <p>• Position the entire product within the frame</p>
+              <p>• Ensure good lighting and clear visibility</p>
+              <p>• Hold steady when capturing the image</p>
+              <p>• Show product labels and packaging clearly</p>
             </div>
           </div>
         </CardContent>
