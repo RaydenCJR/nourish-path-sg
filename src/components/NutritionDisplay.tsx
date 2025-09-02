@@ -13,12 +13,13 @@ import {
   CheckCircle,
   Star,
   Share2,
-  ShoppingCart
+  Camera
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface NutritionDisplayProps {
   product: any;
+  onScanAgain?: () => void;
 }
 
 const getNutritionScore = (nutrition: any): { score: number; grade: string; color: string } => {
@@ -76,7 +77,7 @@ const getHealthInsights = (nutrition: any): { positive: string[]; warnings: stri
   return { positive, warnings };
 };
 
-export const NutritionDisplay: React.FC<NutritionDisplayProps> = ({ product }) => {
+export const NutritionDisplay: React.FC<NutritionDisplayProps> = ({ product, onScanAgain }) => {
   const { toast } = useToast();
 
   if (!product) {
@@ -98,11 +99,10 @@ export const NutritionDisplay: React.FC<NutritionDisplayProps> = ({ product }) =
   const { score, grade, color } = getNutritionScore(product.nutrition);
   const { positive, warnings } = getHealthInsights(product.nutrition);
 
-  const addToList = () => {
-    toast({
-      title: "Added to List",
-      description: `${product.name} added to your grocery list`,
-    });
+  const handleScanAgain = () => {
+    if (onScanAgain) {
+      onScanAgain();
+    }
   };
 
   const shareProduct = () => {
@@ -144,9 +144,9 @@ export const NutritionDisplay: React.FC<NutritionDisplayProps> = ({ product }) =
         </CardHeader>
         <CardContent>
           <div className="flex gap-2">
-            <Button onClick={addToList} variant="fresh" className="flex-1">
-              <ShoppingCart className="w-4 h-4 mr-2" />
-              Add to List
+            <Button onClick={handleScanAgain} variant="scan" className="flex-1">
+              <Camera className="w-4 h-4 mr-2" />
+              Scan Again
             </Button>
             <Button onClick={shareProduct} variant="outline">
               <Share2 className="w-4 h-4" />
