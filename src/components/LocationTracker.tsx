@@ -186,8 +186,11 @@ export const LocationTracker: React.FC<LocationTrackerProps> = ({ location, near
             <div className="text-center py-4">
               <Navigation className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
               <p className="text-muted-foreground">Location not available</p>
+              <p className="text-xs text-muted-foreground mb-3">
+                Make sure location services are enabled in your browser
+              </p>
               <Button variant="outline" size="sm" onClick={refreshLocation} className="mt-2">
-                Enable Location Access
+                Try Again
               </Button>
             </div>
           )}

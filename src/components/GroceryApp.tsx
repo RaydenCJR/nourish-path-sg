@@ -34,35 +34,59 @@ export const GroceryApp = () => {
       return;
     }
 
+    // Try high accuracy first
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setLocation(position);
         checkNearSupermarket(position);
+        toast({
+          title: "Location Found",
+          description: "Location services are working properly",
+        });
       },
       (error) => {
-        console.error('Location error:', error);
-        let errorMessage = "Please enable location access for the best experience";
+        console.error('High accuracy location error:', error);
+        // Fallback to low accuracy
+        tryLowAccuracyLocation();
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 60000 // 1 minute
+      }
+    );
+  };
+
+  const tryLowAccuracyLocation = () => {
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setLocation(position);
+        checkNearSupermarket(position);
+        toast({
+          title: "Location Found",
+          description: "Using approximate location",
+        });
+      },
+      (error) => {
+        console.error('Low accuracy location error:', error);
+        let errorMessage = "Unable to determine your location";
         
-        switch (error.code) {
-          case error.PERMISSION_DENIED:
-            errorMessage = "Location access denied. Please enable location permissions in your browser settings.";
-            break;
-          case error.POSITION_UNAVAILABLE:
-            errorMessage = "Location information unavailable. Please try again.";
-            break;
-          case error.TIMEOUT:
-            errorMessage = "Location request timed out. Please try again.";
-            break;
+        if (error.code === 1) {
+          errorMessage = "Location access denied. Please allow location access and refresh the page.";
+        } else if (error.code === 2) {
+          errorMessage = "Location unavailable. Please check your internet connection or try again later.";
+        } else if (error.code === 3) {
+          errorMessage = "Location request timed out. Please try again.";
         }
 
         toast({
-          title: "Location Access Issue",
+          title: "Location Issue",
           description: errorMessage,
           variant: "destructive"
         });
       },
       {
-        enableHighAccuracy: true,
+        enableHighAccuracy: false,
         timeout: 15000,
         maximumAge: 300000 // 5 minutes
       }
