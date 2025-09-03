@@ -102,6 +102,11 @@ export const LocationTracker: React.FC<LocationTrackerProps> = ({ location, near
       (error) => {
         console.error('Location error:', error);
         setIsTracking(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 300000 // 5 minutes
       }
     );
   };

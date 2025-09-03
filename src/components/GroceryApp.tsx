@@ -21,23 +21,53 @@ export const GroceryApp = () => {
 
   useEffect(() => {
     // Request location permission on app start
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setLocation(position);
-          checkNearSupermarket(position);
-        },
-        (error) => {
-          console.error('Location error:', error);
-          toast({
-            title: "Location Access",
-            description: "Please enable location access for the best experience",
-            variant: "destructive"
-          });
-        }
-      );
-    }
+    requestLocation();
   }, []);
+
+  const requestLocation = () => {
+    if (!navigator.geolocation) {
+      toast({
+        title: "Location Not Supported",
+        description: "Your browser doesn't support location services",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setLocation(position);
+        checkNearSupermarket(position);
+      },
+      (error) => {
+        console.error('Location error:', error);
+        let errorMessage = "Please enable location access for the best experience";
+        
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage = "Location access denied. Please enable location permissions in your browser settings.";
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMessage = "Location information unavailable. Please try again.";
+            break;
+          case error.TIMEOUT:
+            errorMessage = "Location request timed out. Please try again.";
+            break;
+        }
+
+        toast({
+          title: "Location Access Issue",
+          description: errorMessage,
+          variant: "destructive"
+        });
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 300000 // 5 minutes
+      }
+    );
+  };
 
   const checkNearSupermarket = async (position: GeolocationPosition) => {
     try {
