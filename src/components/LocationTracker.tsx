@@ -8,9 +8,6 @@ import { supabase } from '@/integrations/supabase/client';
 interface LocationTrackerProps {
   location: GeolocationPosition | null;
   nearSupermarket: boolean;
-  onRequestLocation: () => void;
-  geoPermission: PermissionState;
-  geoError: string | null;
 }
 
 interface Supermarket {
@@ -23,13 +20,7 @@ interface Supermarket {
   opening_hours?: string;
 }
 
-export const LocationTracker: React.FC<LocationTrackerProps> = ({ 
-  location, 
-  nearSupermarket, 
-  onRequestLocation,
-  geoPermission,
-  geoError 
-}) => {
+export const LocationTracker: React.FC<LocationTrackerProps> = ({ location, nearSupermarket }) => {
   const [isTracking, setIsTracking] = useState(false);
   const [nearbyStores, setNearbyStores] = useState<Supermarket[]>([]);
   const [cheapestNearby, setCheapestNearby] = useState<Supermarket[]>([]);
@@ -111,11 +102,6 @@ export const LocationTracker: React.FC<LocationTrackerProps> = ({
       (error) => {
         console.error('Location error:', error);
         setIsTracking(false);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 300000 // 5 minutes
       }
     );
   };
@@ -192,31 +178,12 @@ export const LocationTracker: React.FC<LocationTrackerProps> = ({
                )}
             </div>
           ) : (
-            <div className="text-center py-4 space-y-3">
-              <Navigation className="w-8 h-8 mx-auto text-muted-foreground" />
-              <div>
-                <p className="text-muted-foreground font-medium">
-                  {geoPermission === 'denied' ? 'Location Access Denied' : 'Location Not Available'}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {geoError || 'Enable location services for the best experience'}
-                </p>
-              </div>
-              
-              {geoPermission === 'denied' ? (
-                <div className="space-y-2">
-                  <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded border">
-                    <p className="font-medium mb-1">To enable location:</p>
-                    <p>1. Click the location icon in your browser's address bar</p>
-                    <p>2. Choose "Allow" for this site</p>
-                    <p>3. Refresh the page</p>
-                  </div>
-                </div>
-              ) : (
-                <Button variant="outline" size="sm" onClick={onRequestLocation}>
-                  Enable Location Access
-                </Button>
-              )}
+            <div className="text-center py-4">
+              <Navigation className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+              <p className="text-muted-foreground">Location not available</p>
+              <Button variant="outline" size="sm" onClick={refreshLocation} className="mt-2">
+                Enable Location Access
+              </Button>
             </div>
           )}
         </CardContent>

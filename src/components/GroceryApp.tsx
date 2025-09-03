@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { MapPin, Camera, ShoppingCart, Users, Clock, AlertCircle } from 'lucide-react';
+import { MapPin, Camera, ShoppingCart, Users, Clock } from 'lucide-react';
 import { GroceryList } from './GroceryList';
 import { LocationTracker } from './LocationTracker';
 import { BarcodeScanner } from './BarcodeScanner';
@@ -17,131 +17,27 @@ export const GroceryApp = () => {
   const [nearSupermarket, setNearSupermarket] = useState(false);
   const [groceryItems, setGroceryItems] = useState<Array<{id: string, name: string, completed: boolean}>>([]);
   const [scannedProduct, setScannedProduct] = useState<any>(null);
-  const [geoPermission, setGeoPermission] = useState<PermissionState>('prompt');
-  const [geoError, setGeoError] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
-    checkLocationPermission();
-  }, []);
-
-  const checkLocationPermission = async () => {
-    if (!navigator.geolocation) {
-      setGeoError("Location services not supported");
-      return;
-    }
-
-    if ('permissions' in navigator) {
-      try {
-        const permission = await navigator.permissions.query({ name: 'geolocation' });
-        setGeoPermission(permission.state);
-        
-        permission.addEventListener('change', () => {
-          setGeoPermission(permission.state);
-        });
-
-        if (permission.state === 'granted') {
-          ensureLocationAccess();
+    // Request location permission on app start
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setLocation(position);
+          checkNearSupermarket(position);
+        },
+        (error) => {
+          console.error('Location error:', error);
+          toast({
+            title: "Location Access",
+            description: "Please enable location access for the best experience",
+            variant: "destructive"
+          });
         }
-      } catch (error) {
-        console.log('Permission API not supported, proceeding with location request');
-        ensureLocationAccess();
-      }
-    } else {
-      ensureLocationAccess();
+      );
     }
-  };
-
-  const ensureLocationAccess = () => {
-    setGeoError(null);
-    
-    if (!navigator.geolocation) {
-      const error = "Location services not supported";
-      setGeoError(error);
-      toast({
-        title: "Location Not Supported",
-        description: error,
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // Try high accuracy first
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setLocation(position);
-        setGeoError(null);
-        checkNearSupermarket(position);
-        console.log('High accuracy location obtained');
-      },
-      (error) => {
-        console.error('High accuracy location error:', error);
-        handleLocationError(error, true);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 8000,
-        maximumAge: 60000 // 1 minute
-      }
-    );
-  };
-
-  const handleLocationError = (error: GeolocationPositionError, tryLowAccuracy: boolean = false) => {
-    let errorMessage = "Unable to determine your location";
-    let shouldTryFallback = false;
-
-    switch (error.code) {
-      case 1: // PERMISSION_DENIED
-        setGeoPermission('denied');
-        errorMessage = "Location access denied. Please enable location permissions.";
-        break;
-      case 2: // POSITION_UNAVAILABLE
-        errorMessage = "Location unavailable. Check your connection or try again.";
-        shouldTryFallback = tryLowAccuracy;
-        break;
-      case 3: // TIMEOUT
-        errorMessage = "Location request timed out.";
-        shouldTryFallback = tryLowAccuracy;
-        break;
-    }
-
-    setGeoError(errorMessage);
-
-    if (shouldTryFallback) {
-      console.log('Trying low accuracy fallback');
-      tryLowAccuracyLocation();
-    } else {
-      toast({
-        title: "Location Issue",
-        description: errorMessage,
-        variant: "destructive"
-      });
-    }
-  };
-
-  const tryLowAccuracyLocation = () => {
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setLocation(position);
-        setGeoError(null);
-        checkNearSupermarket(position);
-        console.log('Low accuracy location obtained');
-        toast({
-          title: "Location Found",
-          description: "Using approximate location",
-        });
-      },
-      (error) => {
-        console.error('Low accuracy location error:', error);
-        handleLocationError(error, false);
-      },
-      {
-        enableHighAccuracy: false,
-        timeout: 15000,
-        maximumAge: 300000 // 5 minutes
-      }
-    );
-  };
+  }, []);
 
   const checkNearSupermarket = async (position: GeolocationPosition) => {
     try {
@@ -211,28 +107,6 @@ export const GroceryApp = () => {
               </Badge>
             )}
           </div>
-
-          {/* Location Permission Alert */}
-          {(!location || geoPermission !== 'granted') && (
-            <div className="mt-4 max-w-md mx-auto">
-              <div className="flex items-center justify-center gap-2 p-3 bg-muted/50 border rounded-lg">
-                <AlertCircle className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">
-                  {geoPermission === 'denied' 
-                    ? "Location access denied" 
-                    : geoError || "Location needed for features"}
-                </span>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={ensureLocationAccess}
-                  disabled={geoPermission === 'denied'}
-                >
-                  {geoPermission === 'denied' ? 'Check Settings' : 'Enable Location'}
-                </Button>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Main Content */}
@@ -267,9 +141,6 @@ export const GroceryApp = () => {
             <LocationTracker 
               location={location}
               nearSupermarket={nearSupermarket}
-              onRequestLocation={ensureLocationAccess}
-              geoPermission={geoPermission}
-              geoError={geoError}
             />
           </TabsContent>
 
@@ -283,7 +154,6 @@ export const GroceryApp = () => {
           <TabsContent value="nutrition" className="space-y-4">
             <NutritionDisplay 
               product={scannedProduct}
-              onScanAgain={() => setActiveTab('scan')}
             />
           </TabsContent>
         </Tabs>
