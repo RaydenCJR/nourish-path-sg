@@ -247,20 +247,9 @@ export const BarcodeScanner: React.FC<ItemScannerProps> = ({ onProductScanned, n
                 Start Camera
               </Button>
             ) : (
-              <>
-                <Button 
-                  onClick={captureImage} 
-                  variant="default" 
-                  className="flex-1"
-                  disabled={isCapturing}
-                >
-                  <Scan className="w-4 h-4 mr-2" />
-                  {isCapturing ? "Analyzing..." : "Capture & Identify"}
-                </Button>
-                <Button onClick={stopScanning} variant="outline">
-                  <StopCircle className="w-4 h-4" />
-                </Button>
-              </>
+              <Button onClick={stopScanning} variant="outline">
+                <StopCircle className="w-4 h-4" />
+              </Button>
             )}
             
             {isScanning && (
