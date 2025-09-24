@@ -36,35 +36,43 @@ serve(async (req) => {
     console.log('Identifying product with barcode:', barcode, 'imageData provided:', !!imageData);
 
     if (barcode) {
-      // Return hardcoded nutrition data
-      console.log('Returning hardcoded product data for barcode:', barcode);
+      // For barcode identification, use AI to generate realistic product data
+      console.log('Generating AI-based product data for barcode:', barcode);
       
-      const productData = {
-        name: 'Scanned Product',
-        brand: 'Generic Brand',
-        category: 'Food',
-        price: 'S$1.00',
-        nutrition: {
-          calories: 120,
-          fat: 2,
-          saturatedFat: 1,
-          carbs: 20,
-          sugar: 5,
-          protein: 8,
-          sodium: 0.3,
-          fiber: 4
-        },
-        barcode: barcode,
-        scannedAt: new Date().toISOString(),
-        scanLocation: 'Barcode Scanned'
-      };
-
-      return new Response(
-        JSON.stringify({ success: true, product: productData }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
+      try {
+        const productData = await generateProductFromBarcode(barcode);
+        
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            product: {
+              ...productData,
+              barcode: barcode,
+              scannedAt: new Date().toISOString(),
+              scanLocation: 'Barcode Scanned'
+            }
+          }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      } catch (error) {
+        console.error('Error generating AI nutrition for barcode:', error);
+        console.error('Detailed error:', error.message, error.stack);
+        
+        // Return error so user knows AI failed
+        return new Response(
+          JSON.stringify({ 
+            error: 'Failed to generate product data with AI', 
+            details: error.message,
+            fallback: false
+          }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
     } else if (imageData) {
       console.log('Making Hugging Face API call for image classification...');
       
@@ -81,27 +89,27 @@ serve(async (req) => {
       
       if (!openAIApiKey) {
         console.error('OpenAI API key not configured, falling back to Hugging Face');
-        // Return hardcoded nutrition data as fallback
-        const productData = {
-          name: 'Scanned Product',
-          brand: 'Generic Brand',
-          category: 'Food',
-          price: 'S$1.00',
-          nutrition: {
-            calories: 120,
-            fat: 2,
-            saturatedFat: 1,
-            carbs: 20,
-            sugar: 5,
-            protein: 8,
-            sodium: 0.3,
-            fiber: 4
+        // Fallback to Hugging Face
+        const response = await fetch('https://api-inference.huggingface.co/models/microsoft/resnet-50', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${huggingFaceToken}`,
+            'Content-Type': 'application/octet-stream',
           },
-          barcode: 'ai-generated',
-          scannedAt: new Date().toISOString(),
-          scanLocation: 'AI Identified',
-          confidence: 95
-        };
+          body: uint8Array,
+        });
+
+        if (!response.ok) {
+          console.error('Hugging Face API error:', response.status, response.statusText);
+          return new Response(
+            JSON.stringify({ error: 'Failed to identify product' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const classifications = await response.json();
+        const topClassification = classifications[0];
+        const productData = await convertClassificationToProduct(topClassification);
         
         return new Response(
           JSON.stringify({ success: true, product: productData }),
@@ -109,29 +117,10 @@ serve(async (req) => {
         );
       }
 
-      // Return hardcoded nutrition data for image scan
-      const productData = {
-        name: 'Scanned Product',
-        brand: 'Generic Brand',
-        category: 'Food',
-        price: 'S$1.00',
-        nutrition: {
-          calories: 120,
-          fat: 2,
-          saturatedFat: 1,
-          carbs: 20,
-          sugar: 5,
-          protein: 8,
-          sodium: 0.3,
-          fiber: 4
-        },
-        barcode: 'vision-identified',
-        scannedAt: new Date().toISOString(),
-        scanLocation: 'Image Scanned',
-        confidence: 95
-      };
+      // Use OpenAI Vision for accurate product identification
+      const productData = await identifyProductWithOpenAIVision(base64Data);
       
-      console.log('Returning hardcoded product data:', productData);
+      console.log('Returning product data:', productData);
       return new Response(
         JSON.stringify({ success: true, product: productData }),
         {
