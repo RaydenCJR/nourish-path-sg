@@ -154,6 +154,8 @@ export const GroceryApp = () => {
           <TabsContent value="nutrition" className="space-y-4">
             <NutritionDisplay 
               product={scannedProduct}
+              groceryItems={groceryItems}
+              onItemsChange={setGroceryItems}
             />
           </TabsContent>
         </Tabs>

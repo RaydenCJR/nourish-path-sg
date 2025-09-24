@@ -19,6 +19,8 @@ import { useToast } from '@/hooks/use-toast';
 
 interface NutritionDisplayProps {
   product: any;
+  groceryItems?: Array<{id: string, name: string, completed: boolean}>;
+  onItemsChange?: (items: Array<{id: string, name: string, completed: boolean}>) => void;
 }
 
 const getNutritionScore = (nutrition: any): { score: number; grade: string; color: string } => {
@@ -76,7 +78,7 @@ const getHealthInsights = (nutrition: any): { positive: string[]; warnings: stri
   return { positive, warnings };
 };
 
-export const NutritionDisplay: React.FC<NutritionDisplayProps> = ({ product }) => {
+export const NutritionDisplay: React.FC<NutritionDisplayProps> = ({ product, groceryItems = [], onItemsChange }) => {
   const { toast } = useToast();
 
   if (!product) {
@@ -99,6 +101,22 @@ export const NutritionDisplay: React.FC<NutritionDisplayProps> = ({ product }) =
   const { positive, warnings } = getHealthInsights(product.nutrition);
 
   const addToList = () => {
+    if (!onItemsChange) {
+      toast({
+        title: "Error",
+        description: "Cannot add to list at this time",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const newItem = {
+      id: Date.now().toString(),
+      name: product.name,
+      completed: false
+    };
+
+    onItemsChange([...groceryItems, newItem]);
     toast({
       title: "Added to List",
       description: `${product.name} added to your grocery list`,
