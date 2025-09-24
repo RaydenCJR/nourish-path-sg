@@ -98,35 +98,41 @@ serve(async (req) => {
         uint8Array[i] = binaryData.charCodeAt(i);
       }
       
-      // Use Hugging Face image classification model
-      const response = await fetch('https://api-inference.huggingface.co/models/microsoft/resnet-50', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${huggingFaceToken}`,
-          'Content-Type': 'application/octet-stream',
-        },
-        body: uint8Array,
-      });
+      // Use OpenAI vision model for better product identification
+      const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+      
+      if (!openAIApiKey) {
+        console.error('OpenAI API key not configured, falling back to Hugging Face');
+        // Fallback to Hugging Face
+        const response = await fetch('https://api-inference.huggingface.co/models/microsoft/resnet-50', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${huggingFaceToken}`,
+            'Content-Type': 'application/octet-stream',
+          },
+          body: uint8Array,
+        });
 
-      if (!response.ok) {
-        console.error('Hugging Face API error:', response.status, response.statusText);
-        const errorText = await response.text();
-        console.error('Hugging Face API error details:', errorText);
+        if (!response.ok) {
+          console.error('Hugging Face API error:', response.status, response.statusText);
+          return new Response(
+            JSON.stringify({ error: 'Failed to identify product' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const classifications = await response.json();
+        const topClassification = classifications[0];
+        const productData = await convertClassificationToProduct(topClassification);
+        
         return new Response(
-          JSON.stringify({ error: 'Failed to identify product' }),
-          { 
-            status: 500, 
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-          }
+          JSON.stringify({ success: true, product: productData }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      const classifications = await response.json();
-      console.log('Hugging Face response received:', classifications);
-
-      // Convert classification to product data
-      const topClassification = classifications[0];
-      const productData = await convertClassificationToProduct(topClassification);
+      // Use OpenAI Vision for accurate product identification
+      const productData = await identifyProductWithOpenAIVision(base64Data);
       
       console.log('Returning product data:', productData);
       return new Response(
@@ -193,6 +199,96 @@ async function convertClassificationToProduct(classification: any) {
       scanLocation: 'AI Identified',
       confidence: Math.round(score * 100)
     };
+  }
+}
+
+// Identify product using OpenAI Vision
+async function identifyProductWithOpenAIVision(base64Data: string) {
+  const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+  
+  if (!openAIApiKey) {
+    throw new Error('OpenAI API key not configured');
+  }
+
+  const prompt = `Analyze this grocery product image and identify the specific product. Return a JSON object with this exact structure:
+{
+  "name": "Specific product name with brand",
+  "brand": "Brand name",
+  "category": "Product category (e.g., Dairy, Snacks, Beverages, etc.)",
+  "price": "S$X.XX (estimate realistic Singapore price)",
+  "nutrition": {
+    "calories": number (per 100g/100ml),
+    "fat": number (grams per 100g/100ml),
+    "saturatedFat": number (grams per 100g/100ml), 
+    "carbs": number (grams per 100g/100ml),
+    "sugar": number (grams per 100g/100ml),
+    "protein": number (grams per 100g/100ml),
+    "sodium": number (grams per 100g/100ml),
+    "fiber": number (grams per 100g/100ml)
+  }
+}
+
+Focus on:
+- Identifying the exact brand and product name visible on the package
+- Providing accurate nutrition facts based on the product type
+- Using realistic Singapore pricing in SGD
+- If you can't clearly identify a specific product, make reasonable assumptions based on what you can see`;
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${openAIApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o',
+      messages: [
+        { 
+          role: 'system', 
+          content: 'You are a grocery product identification expert. Always respond with valid JSON only. Be specific about brands and product names when visible.' 
+        },
+        { 
+          role: 'user', 
+          content: [
+            { type: 'text', text: prompt },
+            { 
+              type: 'image_url', 
+              image_url: { 
+                url: `data:image/jpeg;base64,${base64Data}`,
+                detail: 'high'
+              } 
+            }
+          ]
+        }
+      ],
+      max_tokens: 800,
+      temperature: 0.3
+    }),
+  });
+
+  if (!response.ok) {
+    console.error('OpenAI Vision API error:', response.status, response.statusText);
+    throw new Error(`OpenAI Vision API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const aiResponse = data.choices[0].message.content;
+  
+  try {
+    const productData = JSON.parse(aiResponse);
+    console.log('OpenAI Vision identified product:', productData);
+    
+    return {
+      ...productData,
+      barcode: 'vision-identified',
+      scannedAt: new Date().toISOString(),
+      scanLocation: 'AI Vision Identified',
+      confidence: 95
+    };
+  } catch (parseError) {
+    console.error('Error parsing OpenAI Vision response:', parseError);
+    console.error('Raw response:', aiResponse);
+    throw new Error('Invalid AI Vision response format');
   }
 }
 
