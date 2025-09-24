@@ -40,7 +40,7 @@ serve(async (req) => {
       console.log('Generating AI-based product data for barcode:', barcode);
       
       try {
-        const productData = await generateNutritionWithAI('scanned barcode product');
+        const productData = await generateProductFromBarcode(barcode);
         
         return new Response(
           JSON.stringify({ 
@@ -58,31 +58,17 @@ serve(async (req) => {
         );
       } catch (error) {
         console.error('Error generating AI nutrition for barcode:', error);
+        console.error('Detailed error:', error.message, error.stack);
         
-        // Fallback to basic product data
-        const productData = {
-          name: 'Scanned Product',
-          brand: 'Generic Brand',
-          barcode: barcode,
-          category: 'Food',
-          price: 'S$3.50',
-          nutrition: {
-            calories: 150,
-            fat: 5,
-            saturatedFat: 2,
-            carbs: 20,
-            sugar: 8,
-            protein: 6,
-            sodium: 0.5,
-            fiber: 3
-          },
-          scannedAt: new Date().toISOString(),
-          scanLocation: 'Barcode Scanned'
-        };
-
+        // Return error so user knows AI failed
         return new Response(
-          JSON.stringify({ success: true, product: productData }),
+          JSON.stringify({ 
+            error: 'Failed to generate product data with AI', 
+            details: error.message,
+            fallback: false
+          }),
           {
+            status: 500,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           }
         );
@@ -292,6 +278,89 @@ Focus on:
   }
 }
 
+// Generate product data from barcode using AI
+async function generateProductFromBarcode(barcode: string) {
+  const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+  
+  if (!openAIApiKey) {
+    throw new Error('OpenAI API key not configured');
+  }
+
+  const prompt = `I scanned a product barcode: ${barcode}. 
+
+Generate realistic grocery product information for this barcode. Create a plausible product that might have this barcode number.
+
+Return a JSON object with this exact structure:
+{
+  "name": "Specific product name",
+  "brand": "Brand name",
+  "category": "Product category (Dairy, Snacks, Beverages, Frozen, etc.)",
+  "price": "S$X.XX",
+  "nutrition": {
+    "calories": number,
+    "fat": number,
+    "saturatedFat": number, 
+    "carbs": number,
+    "sugar": number,
+    "protein": number,
+    "sodium": number,
+    "fiber": number
+  }
+}
+
+Requirements:
+- Create a realistic Singapore grocery product
+- Use accurate nutrition values per 100g/100ml for that product type
+- Price should be realistic for Singapore market
+- Make the product name and brand believable
+- Nutrition values should make sense together (e.g., if high sugar, likely higher calories)`;
+
+  console.log('Calling OpenAI API for barcode:', barcode);
+  
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${openAIApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: 'You are a grocery product expert. Always respond with valid JSON only. Create realistic products with accurate nutrition information.' },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.3,
+      max_tokens: 600
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('OpenAI API error response:', errorText);
+    throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
+  }
+
+  const data = await response.json();
+  
+  if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+    console.error('Invalid OpenAI response structure:', data);
+    throw new Error('Invalid OpenAI response structure');
+  }
+  
+  const aiResponse = data.choices[0].message.content;
+  console.log('Raw AI response:', aiResponse);
+  
+  try {
+    const productData = JSON.parse(aiResponse);
+    console.log('AI generated product data for barcode:', productData);
+    return productData;
+  } catch (parseError) {
+    console.error('Error parsing AI response:', parseError);
+    console.error('Raw response that failed to parse:', aiResponse);
+    throw new Error(`Invalid AI response format: ${parseError.message}`);
+  }
+}
+
 // Generate realistic nutrition data using AI
 async function generateNutritionWithAI(productLabel: string) {
   const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
@@ -334,13 +403,15 @@ Make the nutrition values realistic per 100g/100ml. Use Singapore dollars for pr
         { role: 'system', content: 'You are a nutrition expert. Always respond with valid JSON only.' },
         { role: 'user', content: prompt }
       ],
-      temperature: 0.7,
-      max_tokens: 500
+      temperature: 0.3,
+      max_tokens: 600
     }),
   });
 
   if (!response.ok) {
-    throw new Error(`OpenAI API error: ${response.status}`);
+    const errorText = await response.text();
+    console.error('OpenAI API error response:', errorText);
+    throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
   }
 
   const data = await response.json();
@@ -352,6 +423,7 @@ Make the nutrition values realistic per 100g/100ml. Use Singapore dollars for pr
     return productData;
   } catch (parseError) {
     console.error('Error parsing AI response:', parseError);
-    throw new Error('Invalid AI response format');
+    console.error('Raw response that failed to parse:', aiResponse);
+    throw new Error(`Invalid AI response format: ${parseError.message}`);
   }
 }
